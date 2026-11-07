@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 //! Every pre-spawn gate, against a real executable that would leave evidence.
 //!
 //! Asserting that `run_adapter` returned an error would not distinguish a run

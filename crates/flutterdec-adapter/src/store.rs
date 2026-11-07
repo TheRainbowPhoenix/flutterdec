@@ -27,7 +27,9 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 use std::fs;
 use std::io::Read;
+#[cfg(unix)]
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+#[cfg(unix)]
 use std::os::unix::io::AsRawFd;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -398,21 +400,32 @@ impl StoreLock {
         // Blocking, so a concurrent install waits instead of failing. The
         // alternative, a try-lock plus retry loop, turns contention into a
         // spurious error the operator has to interpret.
-        let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
-        if rc != 0 {
-            return Err(io(
-                &format!("lock store {}", path.display()),
-                std::io::Error::last_os_error(),
-            ));
+        #[cfg(unix)]
+        {
+            let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
+            if rc != 0 {
+                return Err(io(
+                    &format!("lock store {}", path.display()),
+                    std::io::Error::last_os_error(),
+                ));
+            }
         }
+        #[cfg(windows)]
+        file.lock()
+            .map_err(|err| io(&format!("lock store {}", path.display()), err))?;
         Ok(Self { file })
     }
 }
 
 impl Drop for StoreLock {
     fn drop(&mut self) {
+        #[cfg(unix)]
         unsafe {
             libc::flock(self.file.as_raw_fd(), libc::LOCK_UN);
+        }
+        #[cfg(windows)]
+        {
+            let _ = self.file.unlock();
         }
     }
 }
@@ -445,10 +458,13 @@ impl Staged {
             path,
             published: false,
         };
-        let mut file = fs::OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .mode(mode)
+        let mut options = fs::OpenOptions::new();
+        options.create_new(true).write(true);
+        #[cfg(unix)]
+        options.mode(mode);
+        #[cfg(windows)]
+        let _ = mode; // Windows has no POSIX execute bits.
+        let mut file = options
             .open(&staged.path)
             .map_err(|err| io(&format!("stage {}", staged.path.display()), err))?;
         use std::io::Write;
@@ -865,6 +881,7 @@ fn artifact_matches(path: &Path, installed: &InstalledAdapter) -> Result<(), (En
             ),
         ));
     }
+    #[cfg(unix)]
     if metadata.permissions().mode() & 0o111 == 0 {
         return Err((
             EntryState::Corrupt,
@@ -1104,7 +1121,7 @@ pub fn inspect(
     Ok(rows)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use flutterdec_loader::identity::{SnapshotKind, TargetArch};
@@ -1261,10 +1278,12 @@ mod tests {
             fs::read(&first.artifact_path).expect("read"),
             PRODUCER.as_bytes()
         );
+        #[cfg(unix)]
         let mode = fs::metadata(&first.artifact_path)
             .expect("metadata")
             .permissions()
             .mode();
+        #[cfg(unix)]
         assert_eq!(mode & 0o777, ARTIFACT_MODE, "artifact is not executable");
 
         let state = load_state(fixture.layout.store_dir()).expect("state");
@@ -1296,6 +1315,7 @@ mod tests {
         assert_store_is_untouched(fixture.layout.store_dir());
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_source_that_is_not_a_regular_file_is_refused() {
         let fixture = default_fixture();
@@ -1306,7 +1326,10 @@ mod tests {
         assert!(matches!(err, StoreError::Source(_)), "{err}");
 
         let link = fixture.layout.data_dir().join("a_link");
+        #[cfg(unix)]
         std::os::unix::fs::symlink(fixture.layout.producer_path(), &link).expect("symlink");
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(fixture.layout.producer_path(), &link).expect("symlink");
         let err = install(&fixture.layout, &fixture.registry, HASH, None, Some(&link))
             .expect_err("a symbolic link is not an artifact");
         assert!(matches!(err, StoreError::Source(_)), "{err}");
@@ -1331,12 +1354,14 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_store_directory_that_is_a_symlink_out_of_the_store_is_refused() {
         let fixture = default_fixture();
         let outside = fixture.layout.data_dir().parent().unwrap().join("outside");
         fs::create_dir_all(&outside).expect("mkdir outside");
         fs::create_dir_all(fixture.layout.store_dir()).expect("mkdir store");
+        #[cfg(unix)]
         std::os::unix::fs::symlink(&outside, fixture.layout.store_dir().join("artifacts"))
             .expect("symlink artifacts");
 

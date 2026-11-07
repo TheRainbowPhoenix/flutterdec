@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 //! The adapter store, driven through the real CLI.
 //!
 //! Install, listing, rollback, containment and store containment, each proven

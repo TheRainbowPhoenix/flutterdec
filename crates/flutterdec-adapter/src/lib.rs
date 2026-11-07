@@ -12,10 +12,18 @@
 //! documents by version, so an old adapter fails loudly instead of being
 //! silently reinterpreted.
 
+#[cfg(unix)]
+pub mod host;
+#[cfg(windows)]
+#[path = "host/windows.rs"]
 pub mod host;
 pub mod model;
 pub mod primitives;
 pub mod protocol;
+#[cfg(unix)]
+pub mod sandbox;
+#[cfg(windows)]
+#[path = "sandbox/windows.rs"]
 pub mod sandbox;
 pub mod store;
 pub mod validate;

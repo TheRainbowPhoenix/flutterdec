@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 //! What `info`, `decompile` and `diff` tell an operator, per scenario.
 //!
 //! Every case runs the packaged binary against a real snapshot fixture and a

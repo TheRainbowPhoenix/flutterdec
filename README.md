@@ -69,7 +69,7 @@ If you remember only three commands:
 | --- | --- |
 | **Target** | A Flutter release build for Android ARM64 (`arm64-v8a`), as an APK or an extracted `libapp.so`. Debug/JIT builds cannot be decompiled. |
 | **Input** | Any file on disk. A split APK works as long as it includes the `arm64-v8a` split, or you can use a universal APK. |
-| **Host** | Linux x86_64 or macOS Apple Silicon for the prebuilt binaries. Other systems can build from source with Nix. |
+| **Host** | Linux x86_64, macOS Apple Silicon, or Windows x64 for new release builds. On Windows, adapter execution is not yet supported; the CLI can inspect inputs and manage bundled adapter metadata. |
 | **Runtime** | Nothing beyond the CLI binary. Analysis is fully static and offline. |
 | **Optional** | [Nix](https://nixos.org/download) for the zero-install path; a Rust toolchain (provided by `nix develop`) to build from source. |
 
@@ -105,8 +105,8 @@ Update later with `nix profile upgrade flutterdec`.
 ### Option 2: Prebuilt release binary
 
 Download the archive for your platform from the
-[Releases page](https://github.com/caverav/flutterdec/releases): Linux x86_64 or macOS Apple
-Silicon. The current prerelease is
+[Releases page](https://github.com/TheRainbowPhoenix/flutterdec/releases): Linux x86_64, macOS Apple
+Silicon, or Windows x64 (in releases built after Windows CI support was added). The current prerelease is
 [`v0.1.0-alpha.4`](https://github.com/caverav/flutterdec/releases/tag/v0.1.0-alpha.4).
 
 > [!IMPORTANT]
@@ -135,6 +135,27 @@ Releases built from current `main` will ship a different layout: a prefix with `
 the compatibility registry, the runtime profiles, and the packaged producer under
 `share/flutterdec`. On those releases the CLI resolves its data relative to its own executable, so
 keep `bin` and `share` together and copy both (`sudo cp -R bin share /usr/local/`).
+
+### Windows x64 (new releases)
+
+Download `flutterdec-<version>-Windows-X64.zip` from the GitHub Releases page and
+extract it. Keep `bin` and `share` side by side; the CLI looks up its registry
+and runtime profiles relative to its executable.
+
+In PowerShell, from the extracted archive directory:
+
+```powershell
+.\bin\flutterdec.exe --version
+.\bin\flutterdec.exe --help
+.\bin\flutterdec.exe adapter list --json
+```
+
+Windows currently supports the CLI and local adapter-store operations, but **does
+not support executing adapters**. The secure adapter host relies on Unix-specific
+executable sealing, process-group termination, and sandbox controls that have not
+yet been ported to Windows. Adapter execution fails closed with an explicit error
+rather than running an uncontained producer. Use Linux or macOS for adapter-backed
+decompilation until a secure native Windows host is implemented.
 
 ### Option 3: Build from a checkout
 

@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 //! The one attack the frozen-pathname image cannot see, exercised rather than
 //! described.
 //!
