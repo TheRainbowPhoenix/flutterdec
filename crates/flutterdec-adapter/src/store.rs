@@ -1121,7 +1121,7 @@ pub fn inspect(
     Ok(rows)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use flutterdec_loader::identity::{SnapshotKind, TargetArch};
