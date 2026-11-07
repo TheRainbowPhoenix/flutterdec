@@ -20,7 +20,7 @@
 //!
 //! The writable adapter store is `FLUTTERDEC_ADAPTER_STORE` when set, else
 //! `<data home>/flutterdec/adapters`, where the data home is `XDG_DATA_HOME`
-//! or `$HOME/.local/share`. The local symbol cache follows the same rule under
+//! or `$HOME/.local/share` (on Windows, `LOCALAPPDATA` or `USERPROFILE/AppData/Local`). The local symbol cache follows the same rule under
 //! `FLUTTERDEC_SYMBOL_CACHE` and `<data home>/flutterdec/symbols`.
 
 use std::ffi::OsString;
@@ -83,7 +83,7 @@ pub enum LayoutError {
     Override { var: String, path: PathBuf },
     /// No candidate held package data.
     NoDataDirectory { candidates: Vec<PathBuf> },
-    /// Neither `XDG_DATA_HOME` nor `HOME` is usable and no override was given.
+    /// No platform-appropriate data home is available.
     NoDataHome { var: String },
 }
 
@@ -111,7 +111,7 @@ impl fmt::Display for LayoutError {
             }
             Self::NoDataHome { var } => write!(
                 f,
-                "cannot place the writable adapter store: neither XDG_DATA_HOME nor HOME is set. Set {var}"
+                "cannot place the writable adapter store: no user data home is set. Set {var}"
             ),
         }
     }
@@ -161,7 +161,19 @@ impl Layout {
         let (data_dir, data_source) = Self::resolve_data_dir(exe, get)?;
 
         let data_home = env_path(get, "XDG_DATA_HOME")
-            .or_else(|| env_path(get, "HOME").map(|home| home.join(".local/share")));
+            .or_else(|| env_path(get, "HOME").map(|home| home.join(".local/share")))
+            .or_else(|| {
+                #[cfg(windows)]
+                {
+                    env_path(get, "LOCALAPPDATA").or_else(|| {
+                        env_path(get, "USERPROFILE").map(|home| home.join("AppData/Local"))
+                    })
+                }
+                #[cfg(not(windows))]
+                {
+                    None
+                }
+            });
 
         let store_dir = match env_path(get, STORE_DIR_VAR) {
             Some(path) => path,
@@ -398,6 +410,29 @@ mod tests {
         .expect("resolve");
         assert_eq!(layout.store_dir(), Path::new("/explicit/store"));
         assert_eq!(layout.symbols_dir(), Path::new("/explicit/symbols"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_profile_fallback_locates_writable_store() {
+        let td = tempdir().expect("tempdir");
+        let data = td.path().join("packaged");
+        seed_data(&data);
+        let exe = td.path().join("bin/flutterdec.exe");
+        let home = td.path().join("profile");
+        let layout = Layout::resolve_with(
+            &exe,
+            &|var| match var {
+                DATA_DIR_VAR => Some(data.clone().into_os_string()),
+                "USERPROFILE" => Some(home.clone().into_os_string()),
+                _ => None,
+            },
+        )
+        .expect("resolve Windows profile");
+        assert_eq!(
+            layout.store_dir(),
+            home.join("AppData/Local/flutterdec/adapters")
+        );
     }
 
     #[test]
