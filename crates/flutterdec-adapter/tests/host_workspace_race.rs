@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 //! A same-user attacker who finds the invocation workspace finds nothing to attack.
 //!
 //! The store artifact is not the only path an attacker could aim at. A host that
