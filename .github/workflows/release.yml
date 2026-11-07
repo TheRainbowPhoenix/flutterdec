@@ -98,10 +98,36 @@ jobs:
           name: flutterdec-${{ github.ref_name }}-${{ runner.os }}-${{ runner.arch }}
           path: ${{ env.archive }}
 
+  build-windows:
+    name: Build Release (x86_64-pc-windows-msvc)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Build release CLI
+        run: cargo build -p flutterdec-cli --locked --release --target x86_64-pc-windows-msvc
+      - name: Package and smoke-test Windows distribution
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archive = "dist/flutterdec-${{ github.ref_name }}-Windows-X64.zip"
+          ./scripts/package-windows-release.ps1 -Binary 'target/x86_64-pc-windows-msvc/release/flutterdec.exe' -Archive $archive
+          ./scripts/windows-release-smoke.ps1 -Archive $archive
+          "archive=$archive" >> $env:GITHUB_ENV
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: flutterdec-${{ github.ref_name }}-Windows-X64
+          path: ${{ env.archive }}
+
   publish:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, build-windows]
 
     steps:
       - name: Download artifacts
@@ -113,6 +139,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/*.tar.gz
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
