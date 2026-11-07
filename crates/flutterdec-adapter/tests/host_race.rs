@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 //! Replacing the store artifact after it is verified cannot change what runs.
 //!
 //! A digest taken from a path says nothing about the file that path names a
