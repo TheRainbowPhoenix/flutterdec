@@ -57,3 +57,21 @@ jobs:
 
       - name: Release layout smoke
         run: nix develop -c ./scripts/release-layout-smoke.sh target/release/flutterdec
+
+  windows:
+    name: Windows CLI build and release smoke
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Build Windows CLI
+        run: cargo build -p flutterdec-cli --locked --release --target x86_64-pc-windows-msvc
+      - name: Package and test Windows ZIP
+        shell: pwsh
+        run: |
+          ./scripts/package-windows-release.ps1 -Binary 'target/x86_64-pc-windows-msvc/release/flutterdec.exe' -Archive 'dist/flutterdec-windows-ci.zip'
+          ./scripts/windows-release-smoke.ps1 -Archive 'dist/flutterdec-windows-ci.zip'
