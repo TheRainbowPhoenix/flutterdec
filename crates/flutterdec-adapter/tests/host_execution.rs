@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 //! Hostile adapters, run for real.
 //!
 //! Every adapter in this file is a real executable that does something a host
