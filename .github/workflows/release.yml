@@ -2,8 +2,17 @@ name: Release
 
 on:
   push:
+    branches: ["master"]
     tags:
       - "v*"
+  merge_group:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
 
 permissions:
   contents: write
